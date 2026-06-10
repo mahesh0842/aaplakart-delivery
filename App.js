@@ -13,6 +13,8 @@ import HomeScreen from './src/screens/HomeScreen';
 import OrderDetailScreen from './src/screens/OrderDetailScreen';
 import OrdersScreen from './src/screens/OrdersScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import DashboardScreen from './src/screens/DashboardScreen';
+import AssignedOrdersScreen from './src/screens/AssignedOrdersScreen';
 import { useAuthStore } from './src/store/authStore';
 import { COLORS } from './src/utils/constants';
 
@@ -71,6 +73,7 @@ function HomeScreenWrapper() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Home" component={HomeScreen} />
+      <Stack.Screen name="Dashboard" component={DashboardScreen} />
       <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
     </Stack.Navigator>
   );
@@ -80,6 +83,7 @@ function OrdersScreenWrapper() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Orders" component={OrdersScreen} />
+      <Stack.Screen name="AssignedOrders" component={AssignedOrdersScreen} />
       <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
     </Stack.Navigator>
   );
