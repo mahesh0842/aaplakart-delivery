@@ -59,10 +59,6 @@ export async function fetchOrderDetail(orderId) {
   return request('GET', `/orders/${orderId}`);
 }
 
-export async function fetchAllOrders() {
-  return request('GET', '/admin/orders');
-}
-
 export async function fetchActiveShop() {
   return request('GET', '/shops/active');
 }
