@@ -1,114 +1,150 @@
 /**
- * WebSocket service for real-time order updates.
- * Connects to backend WebSocket, refreshes orders on updates,
- * and plays notification sounds for new/critical updates.
+ * Socket.IO real-time service for delivery partner app.
+ * Uses socket.io-client npm package.
+ * Events: new_order_placed, order_status_updated, delivery_update
+ *
+ * Exponential backoff: reconnection delay doubles on each failure (2s → 4s → 8s → ... → max 60s).
+ * Error throttling: timeout errors logged max once every 30s to avoid console spam.
  */
 
 import { API_BASE } from '../utils/constants';
 import { useDeliveryStore } from '../store/deliveryStore';
+import { io as IO } from 'socket.io-client';
 
-let _ws = null;
+let _socket = null;
 let _reconnectTimer = null;
-let _pingInterval = null;
-let _lastOrderCount = 0;
+let _pollInterval = null;
+let _reconnectAttempts = 0;       // reset on success
+let _lastTimeoutLog = 0;          // throttle timeout logs (ms timestamp)
+const LOG_THROTTLE_MS = 30000;    // max 1 timeout log per 30s
+const BASE_RECONNECT_MS = 2000;   // start at 2s
+const MAX_RECONNECT_MS = 60000;   // cap at 60s
 
-function getWsUrl() {
-  const base = API_BASE.replace('http://', 'ws://').replace('https://', 'wss://');
-  const serverBase = base.replace(/\/api$/, '');
-  return `${serverBase}/ws/orders`;
+function _backoffMs() {
+  const delay = Math.min(BASE_RECONNECT_MS * Math.pow(2, _reconnectAttempts), MAX_RECONNECT_MS);
+  return delay;
 }
 
-/** Play a simple beep for new orders (uses expo-sound if available) */
-function playAlertSound() {
-  try {
-    // Try to use a simple sound API — falls back silently
-    const Audio = require('expo-av').Audio;
-    const sound = new Audio.Sound();
-    sound.loadAsync({ uri: 'https://cdn.jsdelivr.net/npm/@expo/vector-icons@latest/builtins/notification.wav' })
-      .then(() => sound.playAsync())
-      .catch(() => {});
-  } catch {}
+function _throttledLog(prefix, msg) {
+  const now = Date.now();
+  if (now - _lastTimeoutLog > LOG_THROTTLE_MS) {
+    _lastTimeoutLog = now;
+    console.log(prefix, msg);
+  }
 }
 
-export function connectWebSocket() {
-  disconnectWebSocket();
+/** Check if backend appears reachable (WS or API succeeded recently) */
+export function isBackendReachable() {
+  return _socket?.connected || false;
+}
 
-  const url = getWsUrl();
-  console.log('[WS] Connecting to', url);
+export function connectSocketIO() {
+  disconnectSocketIO();
+
+  const serverUrl = API_BASE.replace('/api', '');
+  console.log('[WS] Connecting Socket.IO to:', serverUrl);
 
   try {
-    _ws = new WebSocket(url);
+    const reconnectDelay = _backoffMs();
+    console.log(`[WS] Reconnect attempt #${_reconnectAttempts + 1}, delay: ${reconnectDelay}ms`);
 
-    _ws.onopen = () => {
-      console.log('[WS] Connected');
-      _pingInterval = setInterval(() => {
-        if (_ws && _ws.readyState === WebSocket.OPEN) {
-          _ws.send(JSON.stringify({ type: 'ping' }));
-        }
-      }, 30000);
-    };
+    _socket = IO(serverUrl, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: reconnectDelay,
+      reconnectionDelayMax: MAX_RECONNECT_MS,
+      reconnectionAttempts: 50,        // finite attempts with backoff (~8 min total)
+      timeout: 8000,                   // slightly longer for mobile networks
+    });
 
-    _ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        console.log('[WS] Message:', msg.type);
+    _socket.on('connect', () => {
+      _reconnectAttempts = 0;          // reset backoff on success
+      _lastTimeoutLog = 0;             // reset throttle
+      console.log('[WS] Connected:', _socket.id);
+      useDeliveryStore.getState().setWsConnected(true);
+      _socket.emit('join_delivery');
+      // Immediately fetch orders — resets _consecutivePollFailures on success
+      useDeliveryStore.getState().loadOrders();
+    });
 
-        if (msg.type === 'order_update') {
-          const status = msg.order?.status || msg.status;
-          useDeliveryStore.getState().loadOrders();
-          // Play sound for delivered (success) or cancelled (important)
-          if (status === 'delivered' || status === 'cancelled') {
-            playAlertSound();
-          }
-        } else if (msg.type === 'new_order') {
-          useDeliveryStore.getState().loadOrders();
-          playAlertSound();
-        }
-      } catch (e) {
-        console.log('[WS] Parse error:', e);
+    _socket.on('disconnect', (reason) => {
+      console.log('[WS] Disconnected:', reason);
+      useDeliveryStore.getState().setWsConnected(false);
+    });
+
+    _socket.on('connect_error', (err) => {
+      _reconnectAttempts++;
+      useDeliveryStore.getState().setWsConnected(false);
+      // Only log timeout errors once per 30s to avoid spam
+      if (err.message === 'timeout') {
+        _throttledLog(`[WS] Timeout (attempt #${_reconnectAttempts}) — backend may be down`);
+      } else {
+        console.log('[WS] Error:', err.message);
       }
-    };
+    });
 
-    _ws.onclose = () => {
-      console.log('[WS] Disconnected — reconnect in 5s');
-      clearInterval(_pingInterval);
-      _pingInterval = null;
-      _ws = null;
-      _reconnectTimer = setTimeout(connectWebSocket, 5000);
-    };
+    _socket.on('room_joined', (data) => {
+      console.log('[WS] Room:', data.room);
+    });
 
-    _ws.onerror = () => {
-      console.log('[WS] Error');
-      if (_ws) _ws.close();
-    };
+    // ── Events from backend ──────────────────────
+
+    _socket.on('new_order_placed', (data) => {
+      console.log('[WS] New order:', data.order_id);
+      useDeliveryStore.getState().loadOrders();
+      try {
+        const { playNewOrderAlert } = require('./notificationService');
+        playNewOrderAlert();
+      } catch {}
+    });
+
+    _socket.on('order_status_updated', (data) => {
+      console.log('[WS] Order status:', data.order_id, '->', data.status);
+      useDeliveryStore.getState().loadOrders();
+    });
+
+    _socket.on('delivery_update', (data) => {
+      console.log('[WS] Delivery:', data.order_id, data.status);
+      useDeliveryStore.getState().loadOrders();
+    });
+
   } catch (e) {
-    console.log('[WS] Failed:', e);
-    _reconnectTimer = setTimeout(connectWebSocket, 10000);
+    console.log('[WS] Setup error:', e.message);
   }
 }
 
-export function disconnectWebSocket() {
+export function disconnectSocketIO() {
   clearTimeout(_reconnectTimer);
-  clearInterval(_pingInterval);
   _reconnectTimer = null;
-  _pingInterval = null;
-  if (_ws) {
-    _ws.onclose = null;
-    _ws.close();
-    _ws = null;
+  if (_socket) {
+    try { _socket.removeAllListeners(); _socket.close(); } catch (e) {}
+    _socket = null;
   }
+  useDeliveryStore.getState().setWsConnected(false);
 }
 
-/**
- * Start real-time updates: WebSocket + polling fallback.
- */
-export function startRealtime(intervalMs = 10000) {
-  connectWebSocket();
-  const interval = setInterval(() => {
-    useDeliveryStore.getState().loadOrders();
-  }, intervalMs);
+/** Start real-time: Socket.IO + smart polling (pauses when backend known-down) */
+export function startRealtime(pollIntervalMs = 5000) {
+  connectSocketIO();
+  _pollInterval = setInterval(() => {
+    // Skip polling if WS disconnected for a while — avoids spamming timeouts
+    const store = useDeliveryStore.getState();
+    if (!store.wsConnected && store._consecutivePollFailures >= 3) {
+      // Exponential backoff for polling too
+      const skipCount = store._consecutivePollFailures - 3;
+      const skipInterval = Math.min(skipCount + 1, 12); // 4s → 12s → ... → 60s
+      if (skipCount > 0 && skipCount % skipInterval !== 0) return;
+    }
+    store.loadOrders();
+  }, pollIntervalMs);
   return () => {
-    disconnectWebSocket();
-    clearInterval(interval);
+    disconnectSocketIO();
+    clearInterval(_pollInterval);
+    _pollInterval = null;
   };
+}
+
+export function reconnectSocketIO() {
+  disconnectSocketIO();
+  connectSocketIO();
 }

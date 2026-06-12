@@ -18,7 +18,7 @@ const LoginScreen = () => {
       return;
     }
     setStep('otp');
-    Toast.show({ type: 'info', text1: 'OTP sent', text2: 'Use 123456 to login in demo mode' });
+    Toast.show({ type: 'info', text1: 'OTP sent', text2: 'Use 1234 to login in demo mode' });
   };
 
   const handleVerify = async () => {
@@ -50,10 +50,10 @@ const LoginScreen = () => {
             <Text style={styles.otpSent}>OTP sent to +91 {phone}</Text>
             <View style={styles.demoHint}>
               <Text style={styles.demoHintText}>Demo mode — use code </Text>
-              <Text style={styles.demoHintCode}>123456</Text>
+              <Text style={styles.demoHintCode}>1234</Text>
             </View>
             <TextInput style={styles.input} placeholder="Enter OTP" placeholderTextColor={COLORS.mutedText}
-              value={otp} onChangeText={setOtp} keyboardType="number-pad" maxLength={6} />
+              value={otp} onChangeText={setOtp} keyboardType="number-pad" maxLength={4} />
             <ActionButton label="Verify & Login" onPress={handleVerify} loading={isLoading} />
             <Pressable onPress={() => setStep('phone')} style={{ marginTop: 16 }}>
               <Text style={styles.backText}>Change phone number</Text>

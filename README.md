@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # 🚚 AaplaKart Delivery — Partner App
 
 > **React Native (Expo)** app for delivery partners — accept orders, navigate, update status
@@ -121,6 +120,3 @@ Session persists via AsyncStorage — restored on app reopen.
 - [Backend README](../aaplakart-backend/README.md)
 - [Architecture Overview](../ARCHITECTURE_OVERVIEW.md)
 - [Delivery App Analysis](../ANALYSIS_DELIVERY_APP.md)
-=======
-# aaplakart-delivery
->>>>>>> 6b13b350d7c7e371c1904cc5fe0ba9a121e0b565

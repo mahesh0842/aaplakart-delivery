@@ -7,8 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
-import SplashScreen from './src/screens/SplashScreen';
-import LoginScreen from './src/screens/LoginScreen';
+import PartnerSetupScreen from './src/screens/PartnerSetupScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import OrderDetailScreen from './src/screens/OrderDetailScreen';
 import OrdersScreen from './src/screens/OrdersScreen';
@@ -91,23 +90,29 @@ function OrdersScreenWrapper() {
 
 // ── Main App ─────────────────────────────────────────────────────
 export default function App() {
-  const user = useAuthStore((s) => s.user);
-  const restoreSession = useAuthStore((s) => s.restoreSession);
-  const [bootStage, setBootStage] = useState('splash'); // splash → loading → ready
+  const [bootStage, setBootStage] = useState('setup'); // setup → ready
+  const isSetupComplete = useAuthStore((s) => s.isSetupComplete);
+  const autoLogin = useAuthStore((s) => s.autoLogin);
+  const token = useAuthStore((s) => s.token);
 
   useEffect(() => {
-    // Show splash for 2s, then check auth
-    const splashTimer = setTimeout(async () => {
-      await restoreSession();
-      // restoreSession updates user in store, but we read fresh value
-      const currentUser = useAuthStore.getState().user;
-      setBootStage(currentUser ? 'ready' : 'ready'); // 'ready' shows either HomeTabs or LoginScreen
-    }, 2000);
-    return () => clearTimeout(splashTimer);
+    // Always try auto-login on startup for fresh token
+    if (isSetupComplete()) {
+      autoLogin().then(() => setBootStage('ready'));
+      return;
+    }
+    // Not set up — show setup screen
+    setBootStage('setup');
   }, []);
 
-  if (bootStage === 'splash') {
-    return <SplashScreen onFinish={() => {}} />;
+  if (bootStage === 'setup') {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="dark" />
+        <PartnerSetupScreen onComplete={() => setBootStage('ready')} />
+        <Toast />
+      </SafeAreaProvider>
+    );
   }
 
   if (bootStage !== 'ready') {
@@ -122,7 +127,7 @@ export default function App() {
     <SafeAreaProvider>
       <NavigationContainer>
         <StatusBar style="dark" />
-        {user ? <HomeTabs /> : <LoginScreen />}
+        <HomeTabs />
       </NavigationContainer>
       <Toast />
     </SafeAreaProvider>

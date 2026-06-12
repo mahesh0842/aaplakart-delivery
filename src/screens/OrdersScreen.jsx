@@ -3,6 +3,7 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'rea
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OrderCard from '../components/OrderCard';
+import OfflinePlaceholder from '../components/OfflinePlaceholder';
 import { COLORS } from '../utils/constants';
 import { useDeliveryStore } from '../store/deliveryStore';
 
@@ -20,6 +21,8 @@ export default function OrdersScreen({ navigation }) {
   const acceptOrder = useDeliveryStore((s) => s.acceptOrder);
   const rejectOrder = useDeliveryStore((s) => s.rejectOrder);
   const releaseOrder = useDeliveryStore((s) => s.releaseOrder);
+  const wsConnected = useDeliveryStore((s) => s.wsConnected);
+  const pollFails = useDeliveryStore((s) => s._consecutivePollFailures);
   const [filter, setFilter] = useState('active');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -56,11 +59,18 @@ export default function OrdersScreen({ navigation }) {
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 30 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="bicycle-outline" size={48} color={COLORS.mutedText} />
-            <Text style={styles.emptyTitle}>No orders</Text>
-            <Text style={styles.emptySub}>{filter === 'delivered' ? 'No delivered orders yet' : 'New orders will appear here'}</Text>
-          </View>
+          pollFails >= 3 ? (
+            <OfflinePlaceholder
+              title="Cannot Load Orders"
+              subtitle="The backend server appears to be offline. Your orders will appear here automatically once the connection is restored."
+            />
+          ) : (
+            <View style={styles.empty}>
+              <Ionicons name="bicycle-outline" size={48} color={COLORS.mutedText} />
+              <Text style={styles.emptyTitle}>No orders</Text>
+              <Text style={styles.emptySub}>{filter === 'delivered' ? 'No delivered orders yet' : 'New orders will appear here'}</Text>
+            </View>
+          )
         }
         renderItem={({ item }) => {
           const isAccepted = acceptedIds.has(item.id);

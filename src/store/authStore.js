@@ -1,7 +1,11 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { deliveryLogin, deliveryLoginWithToken, setAuthToken, clearAuthToken } from '../services/api';
+import { deliveryLogin, setAuthToken, clearAuthToken } from '../services/api';
+
+// Default delivery partner — auto-login with phone + 1234 OTP
+const DEFAULT_PHONE = '9999999999';
+const DEFAULT_OTP = '1234';
 
 export const useAuthStore = create(
   persist(
@@ -9,10 +13,42 @@ export const useAuthStore = create(
       user: null,
       token: null,
       isLoading: false,
+      // Partner ke manual details — local only, no auth needed
+      partnerName: '',
+      partnerMobile: '',
+      partnerId: '',
+
+      /** Auto-login — gets a delivery token from backend automatically */
+      autoLogin: async (phone = DEFAULT_PHONE) => {
+        set({ isLoading: true });
+        try {
+          const result = await deliveryLogin(phone, DEFAULT_OTP);
+          setAuthToken(result.token);
+          set({
+            user: result.user,
+            token: result.token,
+            isLoading: false,
+          });
+          return { success: true };
+        } catch (err) {
+          set({ isLoading: false });
+          return { success: false, error: err.message };
+        }
+      },
+
+      /** Set partner info locally (no backend call) */
+      setPartnerInfo: (name, mobile, id) => {
+        set({ partnerName: name, partnerMobile: mobile, partnerId: id });
+      },
+
+      /** Check if partner has been set up */
+      isSetupComplete: () => {
+        const { partnerName, partnerMobile } = get();
+        return !!(partnerName && partnerMobile);
+      },
 
       login: async (phone, otp) => {
         set({ isLoading: true });
-
         try {
           const result = await deliveryLogin(phone, otp);
           setAuthToken(result.token);

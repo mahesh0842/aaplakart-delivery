@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OrderCard from '../components/OrderCard';
 import ActionButton from '../components/ActionButton';
+import OfflinePlaceholder from '../components/OfflinePlaceholder';
 import { COLORS, SHOP_LOCATION } from '../utils/constants';
 import { useDeliveryStore } from '../store/deliveryStore';
 import { useAuthStore } from '../store/authStore';
@@ -14,6 +15,7 @@ const DashboardScreen = ({ navigation }) => {
   const orders = useDeliveryStore((s) => s.orders);
   const loadOrders = useDeliveryStore((s) => s.loadOrders);
   const logout = useAuthStore((s) => s.logout);
+  const pollFails = useDeliveryStore((s) => s._consecutivePollFailures);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -54,11 +56,19 @@ const DashboardScreen = ({ navigation }) => {
           <ActionButton label="All Orders" variant="secondary" style={{ paddingVertical: 8, paddingHorizontal: 12 }} onPress={() => navigation.navigate('AssignedOrders')} />
         </View>
         {activeOrders.length === 0 ? (
-          <View style={styles.empty}>
-            <Ionicons name="bicycle-outline" size={56} color={COLORS.mutedText} />
-            <Text style={styles.emptyTitle}>No active deliveries</Text>
-            <Text style={styles.emptySub}>New orders appear here automatically.</Text>
-          </View>
+          pollFails >= 3 ? (
+            <OfflinePlaceholder
+              title="Dashboard Unavailable"
+              subtitle="Backend server is unreachable. Delivery stats and orders will load automatically once the connection is restored."
+              compact
+            />
+          ) : (
+            <View style={styles.empty}>
+              <Ionicons name="bicycle-outline" size={56} color={COLORS.mutedText} />
+              <Text style={styles.emptyTitle}>No active deliveries</Text>
+              <Text style={styles.emptySub}>New orders appear here automatically.</Text>
+            </View>
+          )
         ) : activeOrders.map((o) => (
           <OrderCard key={o.id} order={o} onPress={() => navigation.navigate('OrderDetail', { orderId: o.id })} />
         ))}

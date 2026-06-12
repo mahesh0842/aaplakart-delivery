@@ -11,10 +11,16 @@ export const useDeliveryStore = create((set, get) => ({
   isLoading: false,
   lastFetch: null,
   shop: null,
+  /** WebSocket connection state */
+  wsConnected: false,
+  /** Count of consecutive failed API polls (reset on success) */
+  _consecutivePollFailures: 0,
   /** Set of order IDs accepted by this delivery partner */
   acceptedIds: new Set(),
   /** Set of order IDs rejected by this delivery partner */
   rejectedIds: new Set(),
+
+  setWsConnected: (connected) => set({ wsConnected: connected }),
 
   /** Initialize accepted IDs from storage */
   initAccepted: async () => {
@@ -56,6 +62,7 @@ export const useDeliveryStore = create((set, get) => ({
     set({ isLoading: true });
     try {
       const result = await fetchActiveOrders();
+      console.log('[DeliveryStore] Orders fetched:', result);
       let list = Array.isArray(result) ? result : (result.orders || []);
 
       const shopLoc = get().getShopLocation();
@@ -74,9 +81,15 @@ export const useDeliveryStore = create((set, get) => ({
         return { ...o, distanceFromShop: null };
       });
 
-      set({ orders: list, isLoading: false, lastFetch: Date.now() });
-    } catch {
-      set({ isLoading: false });
+      set({ orders: list, isLoading: false, lastFetch: Date.now(), _consecutivePollFailures: 0 });
+      console.log('[DeliveryStore] Orders after filter:', list.length);
+    } catch (err) {
+      const failures = (get()._consecutivePollFailures || 0) + 1;
+      set({ isLoading: false, _consecutivePollFailures: failures });
+      // Only log every 5th failure to avoid console spam
+      if (failures % 5 === 0) {
+        console.warn(`[DeliveryStore] Load orders failed ${failures} times — ${err?.message || 'backend unreachable'}`);
+      }
     }
   },
 

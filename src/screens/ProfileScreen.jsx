@@ -11,7 +11,9 @@ export default function ProfileScreen() {
   const orders = useDeliveryStore((s) => s.orders);
   const acceptedIds = useDeliveryStore((s) => s.acceptedIds);
   const logout = useAuthStore((s) => s.logout);
-  const user = useAuthStore((s) => s.user);
+  const partnerName = useAuthStore((s) => s.partnerName || 'Delivery Partner');
+  const partnerMobile = useAuthStore((s) => s.partnerMobile || 'Not set');
+  const partnerId = useAuthStore((s) => s.partnerId || 'DP001');
 
   const stats = useMemo(() => {
     const delivered = orders.filter(o => o.status === 'delivered');
@@ -29,8 +31,9 @@ export default function ProfileScreen() {
   }, [orders, acceptedIds]);
 
   const menuItems = [
-    { icon: 'person-circle', label: 'Name', value: user?.displayName || 'Delivery Partner' },
-    { icon: 'call', label: 'Phone', value: user?.phoneNumber || 'Not set' },
+    { icon: 'id-card', label: 'Partner ID', value: partnerId },
+    { icon: 'person-circle', label: 'Name', value: partnerName },
+    { icon: 'call', label: 'Phone', value: partnerMobile },
     { icon: 'star', label: 'Rating', value: '4.8 ⭐' },
     { icon: 'bicycle', label: 'Total Deliveries', value: `${stats.totalDelivered}` },
     { icon: 'cash', label: "Today's Earnings", value: `₹${stats.todayEarnings}` },
@@ -47,8 +50,9 @@ export default function ProfileScreen() {
         {/* Avatar Card */}
         <View style={styles.avatarCard}>
           <Image source={require('../../assets/icon.png')} style={styles.avatar} />
-          <Text style={styles.name}>{user?.displayName || 'Delivery Partner'}</Text>
-          <Text style={styles.phone}>{user?.phoneNumber || 'Not set'}</Text>
+          <Text style={styles.name}>{partnerName}</Text>
+          <Text style={styles.phone}>{partnerMobile}</Text>
+          <Text style={styles.partnerId}>ID: {partnerId}</Text>
           <View style={styles.ratingBadge}>
             <Ionicons name="star" size={14} color="#f59e0b" />
             <Text style={styles.ratingText}>4.8</Text>

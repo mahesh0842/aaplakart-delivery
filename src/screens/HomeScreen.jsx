@@ -21,7 +21,7 @@ export default function HomeScreen({ navigation }) {
   const acceptOrder = useDeliveryStore((s) => s.acceptOrder);
   const releaseOrder = useDeliveryStore((s) => s.releaseOrder);
   const logout = useAuthStore((s) => s.logout);
-  const partnerName = useAuthStore((s) => s.user?.displayName || 'Partner');
+  const partnerName = useAuthStore((s) => s.partnerName || s.user?.displayName || 'Partner');
   const [refreshing, setRefreshing] = useState(false);
   const [online, setOnline] = useState(true);
 

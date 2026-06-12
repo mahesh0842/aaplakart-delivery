@@ -15,7 +15,15 @@ async function request(method, path, body = null, timeoutMs = 15000) {
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   options.signal = controller.signal;
   let response;
-  try { response = await fetch(`${API_BASE}${path}`, options); }
+  try {
+    response = await fetch(`${API_BASE}${path}`, options);
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw new Error('Request timed out — backend may be unreachable');
+    }
+    throw new Error(err.message || 'Network error — check your connection');
+  }
   finally { clearTimeout(timeoutId); }
   const text = await response.text();
   if (!response.ok) {

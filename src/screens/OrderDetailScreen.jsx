@@ -64,7 +64,7 @@ const OrderDetailScreen = ({ route, navigation }) => {
     if (result.success) {
       Toast.show({ type: 'success', text1: `✅ ${STATUS_LABELS[nextStatus]}`, text2: `Order #${order.id}` });
       setOrder({ ...order, status: nextStatus });
-      if (nextStatus === 'delivered') setTimeout(() => navigation.goBack(), 1200);
+      if (nextStatus === 'delivered') setTimeout(() => navigation.goBack(), 20000); // 20s auto-dismiss
     } else {
       Toast.show({ type: 'error', text1: 'Failed', text2: result.error });
     }
@@ -132,20 +132,31 @@ const OrderDetailScreen = ({ route, navigation }) => {
         {/* Items */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🛒 Items ({itemCount})</Text>
-          {items.map((item) => (
+          {items.map((item) => {
+            let optsStr = '';
+            if (item.options) {
+              try {
+                const opts = typeof item.options === 'string' ? JSON.parse(item.options) : item.options;
+                if (Array.isArray(opts) && opts.length > 0) {
+                  optsStr = ' · ' + opts.map(o => o.label).join(' | ');
+                }
+              } catch(e) {}
+            }
+            return (
             <View key={item.product_id || item.name} style={styles.itemRow}>
               <View style={styles.itemQtyBadge}>
                 <Text style={styles.itemQty}>{item.quantity}</Text>
               </View>
               <View style={styles.itemInfo}>
                 <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                {item.weight ? (
-                  <Text style={styles.itemWeight}>{item.weight}</Text>
+                {(item.weight || optsStr) ? (
+                  <Text style={styles.itemWeight}>{item.weight || ''}{optsStr}</Text>
                 ) : null}
               </View>
               <Text style={styles.itemPrice}>₹{Number(item.price * item.quantity).toFixed(0)}</Text>
             </View>
-          ))}
+            );
+          })}
         </View>
 
         {/* Payment */}
